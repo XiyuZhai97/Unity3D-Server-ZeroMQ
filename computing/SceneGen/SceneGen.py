@@ -8,7 +8,7 @@ import matplotlib.patches as patches
 import scipy.stats as ss
 import numpy as np
 from colour import Color
-from SemanticObject import *
+from computing.SceneGen.SemanticObject import *
 
 objects_to_model = ['bed', 'chair', 'storage', 'decor', 'picture', 'table', 'sofa', 'tv']
 symmetry = {'decor':0, 'table': '0',
@@ -47,7 +47,7 @@ can_overlap = {'bed':['other', 'decor', 'picture'],
                    'sofa':['other', 'decor', 'picture'],
                    'other':['other', 'bed', 'chair', 'storage', 'decor', 'picture', 'table', 'tv', 'sofa']}
 #use 'floor' object to calculate room info
-use_floor = False
+use_floor = True
 """
 Take an input line and return a SemanticObject
 """
@@ -70,7 +70,7 @@ def parseRoom(fname, input_dir, add_objects = False):
     listOfLines = inputHandler.readlines()
     inputHandler.close()
     if use_floor:
-        objects = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0] != 'floor']
+        objects = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0:5] != 'floor']
     else:
         objects = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*']
         
@@ -78,7 +78,7 @@ def parseRoom(fname, input_dir, add_objects = False):
         return []
     
     if use_floor:
-        floor = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0] == 'floor']        
+        floor = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0:5] == 'floor']
         room_info = getRoomInfo(floor)
     else:
         room_info = getRoomInfo(objects)
@@ -184,8 +184,15 @@ def generatePossiblePositionOrientation(object_name, objects, position_model, po
 
     scored_points = list(zip(points, scores))
     scored_points.sort(key = lambda x: x[1], reverse = True)
-    best_point, _ = scored_points[0]
-
+    try:
+        best_point, _ = scored_points[0]
+    except: # empty file
+        best_angle = 0
+        if get_all:
+            angles = 0
+            all_angle_scores = 0
+            return scored_points, best_angle, Intervalx, Intervaly, angles, all_angle_scores
+        return scored_points, best_angle, Intervalx, Intervaly
     angles = np.linspace(0, 2 * np.pi, anglesnumber + 1)[:-1]
     axes1 = [[np.cos(angle), np.sin(angle), 0] for angle in angles]
     axes2 = [[np.cos(angle + np.pi/2.0), np.sin(angle + np.pi/2.0), 0] for angle in angles]
@@ -231,33 +238,42 @@ def generatePossiblePositionOrientation(object_name, objects, position_model, po
     if get_all:
         return scored_points, best_angle, Intervalx, Intervaly, angles, all_angle_scores
     return scored_points, best_angle, Intervalx, Intervaly
-def augmentScene(room, input_dir, output_dir): #, visualize):
-    output_dir += '%s/'%(room)
+def augmentScene_getAllResult(room, input_dir, output_dir, model_dir, visualize = False):
+    # output_dir += '%s/'%(room)
     try:
         os.makedirs(output_dir)
     except:
         pass
-    
-    objects, objects_to_add = parseRoom(room, input_dir,add_objects =  True)
+    all_add_object_names = []
+    objects = parseRoom(room, input_dir, add_objects =  False)
+    _, objects_to_add = parseRoom("to_add_objects.txt", model_dir, add_objects =  True)
     room_info = getRoomInfo(objects)
-
-    # if visualize:
-    #     plt.figure(figsize=(10,10))
-    #     visualizeScene(objects)
-    #     plt.savefig(output_dir + 'before.png')
-    #     plt.show()
-
+    if visualize:
+        plt.figure(figsize=(10,10))
+        visualizeScene(objects)
+        plt.savefig(output_dir + 'before.png')
+        plt.show()
+    
     for ix, new_object in enumerate(objects_to_add):
         new_semanticobject = createSemanticObject(new_object[1:])
         outputs = []
         object_name = new_semanticobject.label
-        model_fname = output_dir + '/models/' + object_name + '.pkl'
+        all_add_object_names.append(object_name)
+        model_fname = model_dir + object_name + '.pkl'
         try:
             position_model, position_model_headings, orientation_model, orientation_model_headings = pd.read_pickle(model_fname)
         except:
             print("Prediction model for %s Does not exist, exiting"%(object_name))
             return
         scored_points, level3_angle, level3_Intervalx, level3_Intervaly,all_angles, all_angle_scores = generatePossiblePositionOrientation(object_name, objects, position_model, position_model_headings, orientation_model, orientation_model_headings, new_object, symmetry[object_name], room_info, get_all = True)
+        # if the new object is too big and no place to add
+        if(scored_points == []):
+            output_file = output_dir + "place_" +object_name + "_in_" + room[0: len(room) - 4] + ".txt"
+            # objects.append(new_semanticobject) # do not consider previous added obj
+            outputFileHandler = open(output_file,"w+")
+            outputFileHandler.writelines(outputs)
+            outputFileHandler.close()
+            continue
         level3_ang_x, level3_ang_y = np.cos(level3_angle), np.sin(level3_angle)
         
         new_semanticobject.center = [scored_points[0][0][0],scored_points[0][0][1], 0]
@@ -267,45 +283,47 @@ def augmentScene(room, input_dir, output_dir): #, visualize):
         new_semanticobject.axis2 = axis2
 
         outputs = ["%.3f, %.3f, %.3f,%.3f, %.3f, %.3e, %.3f, %.3f\n" %(point[0], point[1], level3_ang_x, level3_ang_y, 0, score, level3_Intervalx, level3_Intervaly) for point, score in scored_points]
+        
         plt.axis('scaled')
-        # if visualize:
-        #     nonzero = len([i for i in scored_points if i[1] > 0])
-        #     blue = Color("blue")
-        #     colors = list(blue.range_to(Color("red"),nonzero+1))
+        if visualize:
+            nonzero = len([i for i in scored_points if i[1] > 0])
+            blue = Color("blue")
+            colors = list(blue.range_to(Color("red"),nonzero+1))
 
-        #     plt.figure(figsize=(10,10))
-        #     idx = 0
-        #     for point, score in scored_points:
-        #         if (score > 0):
-        #             color = colors[idx].hex_l
-        #             if idx == 0:
-        #                 plt.scatter(point[0],point[1], s=500, c = color)
-        #                 plt.arrow(point[0],point[1], np.cos(level3_angle) , np.sin(level3_angle) , shape = 'full', color = 'm')
-        #             plt.scatter(point[0],point[1], s=150, c = color)
-        #             idx +=1
-        #     visualizeScene(objects, new_semanticobject, room_info = room_info)
-        #     plt.show()
+            plt.figure(figsize=(10,10))
+            idx = 0
+            for point, score in scored_points:
+                if (score > 0):
+                    color = colors[idx].hex_l
+                    if idx == 0:
+                        plt.scatter(point[0],point[1], s=500, c = color)
+                        plt.arrow(point[0],point[1], np.cos(level3_angle) , np.sin(level3_angle) , shape = 'full', color = 'm')
+                    plt.scatter(point[0],point[1], s=150, c = color)
+                    idx +=1
+            visualizeScene(objects, new_semanticobject, room_info = room_info)
+            plt.show()
 
         ranks = ss.rankdata(all_angle_scores, method='ordinal')
         values = list(zip(all_angles, all_angle_scores,ranks))
         outputs += ["\nOrientation\n"]
         outputs += ["%.3f, %.3e, %d\n"%(np.degrees(ang), score, len(ranks) - rank) for ang, score, rank in values]
-        output_file = output_dir + "place_" +object_name + "_in_" + room[0: len(room) - 4] + "_obj_" + str(ix) + ".txt"
-
-        objects.append(new_semanticobject)
+        output_file = output_dir + "place_" +object_name + "_in_" + room[0: len(room) - 4] + ".txt"
+        # objects.append(new_semanticobject) # do not consider previous added obj
         outputFileHandler = open(output_file,"w+")
         outputFileHandler.writelines(outputs)
         outputFileHandler.close()
-    # if visualize:
-    #     plt.figure()
-    #     visualizeScene(objects, room_info = room_info)
-    #     plt.savefig(output_dir + 'after.png')
-    #     plt.show()
-    #     plt.close()
-    outputs = ['label,px,py,pz,a0x,a0y,a0z,a1x,a1y,a1z,r0,r1,r2,sym']
-    for object in objects:
-        outputs.append(semanticObjectToString(object) + '\n')
-    output_file = output_dir + "place_%d_objects_in_%s.txt"%(len(objects_to_add),room[0: len(room) - 4])
-    outputFileHandler = open(output_file,"w+")
-    outputFileHandler.writelines(outputs)
-    outputFileHandler.close()
+
+    if visualize:
+        plt.figure()
+        visualizeScene(objects, room_info = room_info)
+        plt.savefig(output_dir + 'after.png')
+        plt.show()
+        plt.close()
+    return all_add_object_names
+    # outputs = ['label,px,py,pz,a0x,a0y,a0z,a1x,a1y,a1z,r0,r1,r2,sym']
+    # for object in objects:
+    #     outputs.append(semanticObjectToString(object) + '\n')
+    # output_file = output_dir + "place_%d_objects_in_%s.txt"%(len(objects_to_add),room[0: len(room) - 4])
+    # outputFileHandler = open(output_file,"w+")
+    # outputFileHandler.writelines(outputs)
+    # outputFileHandler.close()
