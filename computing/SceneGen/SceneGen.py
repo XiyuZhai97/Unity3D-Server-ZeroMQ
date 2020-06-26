@@ -68,23 +68,25 @@ Returns a list of SemanticObjects
 def parseRoom(fname, input_dir, add_objects = False):
     inputHandler = open(input_dir+fname, "r")
     listOfLines = inputHandler.readlines()
+    # print(fname)
+    # print(listOfLines)
     inputHandler.close()
     if use_floor:
-        objects = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0:5] != 'floor']
+        objects = [createSemanticObject(l) for l in listOfLines[1:] if l != '\n' and l[0] != '*' and l[0:5] != 'floor']
     else:
-        objects = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*']
+        objects = [createSemanticObject(l) for l in listOfLines[1:] if l != '\n' and l[0] != '*']
         
-    if (len(objects) < 1):
-        return []
+    # if (len(objects) < 1):
+    #     return []
     
     if use_floor:
-        floor = [createSemanticObject(l) for l in listOfLines[1:] if l[0] != '*' and l[0:5] == 'floor']
+        floor = [createSemanticObject(l) for l in listOfLines[1:] if l != '\n' and l[0] != '*' and l[0:5] == 'floor']
         room_info = getRoomInfo(floor)
     else:
         room_info = getRoomInfo(objects)
         
     if add_objects:
-        objects_to_add = [l for l in listOfLines[1:] if l[0] == '*']
+        objects_to_add = [l for l in listOfLines[1:] if l != '\n' and l[0] == '*']
     for obj in objects:
         obj.updateRoomPosition(room_info)
     for first_obj, second_obj in itertools.permutations(objects, 2):

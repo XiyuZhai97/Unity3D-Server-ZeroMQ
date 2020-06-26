@@ -9,7 +9,7 @@ newFileFlag = "START SEND FILE:"
 input_dir = r"/home/ubuntu/received_files/"
 output_dir = r"/home/ubuntu/output/"
 model_dir = r"/home/ubuntu/workspace/Unity3D-Server-ZeroMQ/computing/SceneGen/models/"
-print(output_dir)
+print("Start Server")
 
 while True:
     #  Wait for next request from client
@@ -26,17 +26,21 @@ while True:
 
     elif("COMPLETE:" + fileNAME in message):
         # Run ML model and send heatmap files as one feedback
-        feedback = ""
-        all_add_object_names = SG.augmentScene_getAllResult(fileNAME, input_dir, output_dir, model_dir, False)
-        for object_name in all_add_object_names:
-            outputFileHandler = open(output_dir + "place_" +object_name + "_in_" + fileNAME, "r")
-            data = outputFileHandler.read()
-            outputFileHandler.close()
-            feedback += "HEATMAP_FILES:" + "place_" +object_name + "_in_" + fileNAME + '\n'
-            feedback += data
-        socket.send(feedback.encode('UTF-8'))
         print("Complete " + fileNAME + ".txt")
         inputFileHandler.close()
+
+        feedback = ""
+        all_add_object_names = SG.augmentScene_getAllResult(fileNAME + ".txt", input_dir, output_dir, model_dir, False)
+        for object_name in all_add_object_names:
+            outputFileHandler = open(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt", "r")
+            data = outputFileHandler.read()
+            outputFileHandler.close()
+            feedback += '\n' + "HEATMAP_FILES:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
+            feedback += data
+            feedback += "COMPLETE:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
+        socket.send(feedback.encode('UTF-8'))
+        print("Get results for " + fileNAME + ".txt")
+
 
     elif(not inputFileHandler.closed):
         feedback = "Received Content"
