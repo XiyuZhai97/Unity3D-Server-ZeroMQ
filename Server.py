@@ -31,16 +31,28 @@ while True:
         inputFileHandler.close()
 
         feedback = ""
-        all_add_object_names = SG.augmentScene_getAllResult(fileNAME + ".txt", input_dir, output_dir, model_dir, False)
-        for object_name in all_add_object_names:
-            outputFileHandler = open(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt", "r")
-            data = outputFileHandler.read()
-            outputFileHandler.close()
-            feedback += '\n' + "HEATMAP_FILES:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
-            feedback += data
-            feedback += "COMPLETE:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
-        socket.send(feedback.encode('UTF-8'))
-        print("Get results for " + fileNAME + ".txt")
+        try:
+            all_add_object_names = SG.augmentScene_getAllResult(fileNAME + ".txt", input_dir, output_dir, model_dir, False)
+            for object_name in all_add_object_names:
+                outputFileHandler = open(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt", "r")
+                data = outputFileHandler.read()
+                outputFileHandler.close()
+                feedback += '\n' + "HEATMAP_FILES:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
+                feedback += data
+                feedback += "COMPLETE:" + "place_" +object_name + "_in_" + fileNAME + ".txt" + '\n'
+            socket.send(feedback.encode('UTF-8'))
+            print("Get results for " + fileNAME + ".txt")
+
+            print("Delete received file and results")
+            for object_name in all_add_object_names:
+                if os.path.exists(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt"):
+                    os.remove(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt")
+                else:
+                    print(input_dir + fileNAME + ".txt" + " does not exist")
+        except:
+            feedback = "ERROR"
+            print("empty file")
+            socket.send(feedback.encode('UTF-8'))
 
         print("Delete received file and results")
         
@@ -49,11 +61,6 @@ while True:
         else:
             print(input_dir + fileNAME + ".txt" + " does not exist")
             
-        for object_name in all_add_object_names:
-            if os.path.exists(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt"):
-                os.remove(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt")
-            else:
-                print(input_dir + fileNAME + ".txt" + " does not exist")
 
     elif(not inputFileHandler.closed):
         feedback = "Received Content"
