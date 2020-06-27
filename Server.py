@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import time
 import zmq
+import os
 import computing.SceneGen.SceneGen as SG
 context = zmq.Context()
 socket = context.socket(zmq.REP)
@@ -41,6 +42,18 @@ while True:
         socket.send(feedback.encode('UTF-8'))
         print("Get results for " + fileNAME + ".txt")
 
+        print("Delete received file and results")
+        
+        if os.path.exists(input_dir + fileNAME + ".txt"):
+            os.remove(input_dir + fileNAME + ".txt")
+        else:
+            print(input_dir + fileNAME + ".txt" + " does not exist")
+            
+        for object_name in all_add_object_names:
+            if os.path.exists(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt"):
+                os.remove(output_dir + "place_" +object_name + "_in_" + fileNAME + ".txt")
+            else:
+                print(input_dir + fileNAME + ".txt" + " does not exist")
 
     elif(not inputFileHandler.closed):
         feedback = "Received Content"
