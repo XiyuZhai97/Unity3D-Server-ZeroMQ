@@ -2,7 +2,7 @@
 using UnityEngine.UI;
 using System.Collections;
 
-public class HelloClient : MonoBehaviour
+public class NetMQClient : MonoBehaviour
 {
     public Text Receiving;
     public Text Sending;
@@ -11,43 +11,46 @@ public class HelloClient : MonoBehaviour
     public Button startConnect;
     public InputField ipInput;
     public InputField roomNameInput;
-
+    string room;
     private HelloRequester _helloRequester;
 
     private void Start()
     {
-        // _helloRequester = new HelloRequester();
-        Status.text = "Stopped";
         stopConnect.onClick.AddListener(stopConnectFun);
         startConnect.onClick.AddListener(startConnectFun);
-
+        _helloRequester = new HelloRequester();
     }
     void Update()
     {
         if(_helloRequester != null){
-
-            Receiving.text = _helloRequester.received;
-            Sending.text = _helloRequester.sended;
+            Receiving.text = _helloRequester.receivedLog;
+            Sending.text = _helloRequester.sentLog;
+            Status.text = _helloRequester.status;
+            if(_helloRequester.status.Contains("COMPLETE") || _helloRequester.status.Contains("ERROR")){
+                stopConnectFun();
+            }
         }
-        // Status.text = _helloRequester.status;
+        room = roomNameInput.text;
+
     }
 
     void startConnectFun()
     {
-        
-        Status.text = "Stop Connect ...";
-        if(_helloRequester != null){
+        this.GetComponent<WriteLocation>().saveRoom();
+        if(_helloRequester.Running){
             _helloRequester.Stop();
         }
-
-        Status.text = "Start Connect ...";
         _helloRequester = new HelloRequester();
+        Status.text = _helloRequester.status;
         _helloRequester.serverIP = ipInput.text;
+        _helloRequester.sendFilePath = this.GetComponent<RoomManager>().inputFilePath;
+        _helloRequester.receiveFilePath = this.GetComponent<RoomManager>().outputFilePath; // change this to your directory
+
+        _helloRequester.fileName = room;
         _helloRequester.Start();
     }
     void stopConnectFun()
     {
-        Status.text = "Stop Connect ...";
         _helloRequester.Stop();
     }
     private void OnDestroy()

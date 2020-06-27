@@ -7,11 +7,6 @@
 public abstract class RunAbleThread
 {
     private readonly Thread _runnerThread;
-    public string received;
-    public string sended;
-    public string status;
-
-
     protected RunAbleThread()
     {
         // we need to create a thread instead of calling Run() directly because it would block unity
@@ -19,7 +14,7 @@ public abstract class RunAbleThread
         _runnerThread = new Thread(Run);
     }
 
-    protected bool Running { get; private set; }
+    public bool Running { get; private set; }
 
     /// <summary>
     /// This method will get called when you call Start(). Programmer must implement this method while making sure that
@@ -40,6 +35,6 @@ public abstract class RunAbleThread
         // block main thread, wait for _runnerThread to finish its job first, so we can be sure that 
         // _runnerThread will end before main thread end
         _runnerThread.Join();
-        _runnerThread.Abort();
+        // _runnerThread.Abort();
     }
 }

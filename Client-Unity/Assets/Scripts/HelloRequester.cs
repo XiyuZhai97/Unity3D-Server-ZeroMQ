@@ -1,6 +1,7 @@
 ﻿using AsyncIO;
 using NetMQ;
 using NetMQ.Sockets;
+using System.IO;
 using UnityEngine;
 /// <summary>
 ///     Example of requester who only sends Hello. Very nice guy.
@@ -10,43 +11,83 @@ using UnityEngine;
 public class HelloRequester : RunAbleThread
 {
     public string serverIP = "tcp://192.168.0.2:5123";
-    /// <summary>
-    ///     Request Hello message to server and receive message back. Do it 10 times.
-    ///     Stop requesting when Running=false.
-    /// </summary>
+    public string receivedLog;
+    public string sentLog;
+    public string status = "Stopped";
+    public string sendFilePath;
+    public string receiveFilePath;
+    public string fileName;
+    StreamWriter writer;
     protected override void Run()
     {
         ForceDotNet.Force(); // this line is needed to prevent unity freeze after one use, not sure why yet
         using (RequestSocket client = new RequestSocket())
         {
             client.Connect(serverIP);
-            Debug.Log(serverIP);
-
-            for (int i = 0; Running; i++)
+            
+            status = "Not Connect";
+            for(;Running;)
             {
-                Debug.Log("Sending Hello");
-                client.SendFrame("Hello");
-                sended += "[" + i + "] " + System.DateTime.Now + ": Hello \r\n";
-                // ReceiveFrameString() blocks the thread until you receive the string, but TryReceiveFrameString()
-                // do not block the thread, you can try commenting one and see what the other does, try to reason why
-                // unity freezes when you use ReceiveFrameString() and play and stop the scene without running the server
-//                string message = client.ReceiveFrameString();
-//                Debug.Log("Received: " + message);
-                string message = null;
-                bool gotMessage = false;
-                while (Running)
-                {
-                    gotMessage = client.TryReceiveFrameString(out message); // this returns true if it's successful
-                    if (gotMessage) break;
-                }
+                status = "Sending...";
+                client.SendFrame("START SEND FILE:" + fileName);
+                ReceiveMessage(client);
+                var bytes = System.IO.File.ReadAllBytes(sendFilePath + fileName + ".txt");
+                client.SendFrame(bytes);
+                ReceiveMessage(client);
 
-                if (gotMessage) {
-                    received += System.DateTime.Now + ": Received " + message + " \r\n";
-                    Debug.Log("Received " + message);
-                }
+                client.SendFrame("COMPLETE:" + fileName);
+                ReceiveMessage(client);
+                if(status.Contains("ERROR"))
+                    break;
+                status = "COMPLETE: " + fileName;
+                break;
+            }
+        }
+        NetMQConfig.Cleanup(); // this line is needed to prevent unity freeze after one use, not sure why yet
+        
+    }
+    void ReceiveMessage(RequestSocket client)
+    {
+        string message = null;
+        bool gotMessage = false;
+        var timeout = new System.TimeSpan(0, 0, 5); //1sec
+
+        while (Running)
+        {
+            gotMessage = client.TryReceiveFrameString(timeout, out message); // this returns true if it's successful
+            if (gotMessage) break;
+            else{
+                status = "Check server ip or server is closed";
+                break;
             }
         }
 
-        NetMQConfig.Cleanup(); // this line is needed to prevent unity freeze after one use, not sure why yet
+        if (gotMessage) {
+            // receivedLog += System.DateTime.Now + ": Received " + message + " \r\n";
+            if(message.Contains("ERROR")){
+                status = "ERROR(empty room)";
+            }
+            if(message.Contains("HEATMAP_FILES")){
+                string[] content_lines = message.Split(new string[] { "\r\n", "\n" }, System.StringSplitOptions.RemoveEmptyEntries);
+                foreach (string s in content_lines)
+                {
+                    if(s.Contains("HEATMAP_FILES:"))
+                    {
+                        Debug.Log(receiveFilePath + s.Substring("HEATMAP_FILES:".Length));
+                        status = "Writing: " + receiveFilePath + s.Substring("HEATMAP_FILES:".Length);
+                        writer = new StreamWriter(receiveFilePath + s.Substring("HEATMAP_FILES:".Length), true);
+                    }
+                    else if(s.Contains("COMPLETE:"))
+                    {
+                        writer.Close();
+                        status = "Get: " + receiveFilePath + s.Substring("HEATMAP_FILES:".Length);
+                    }
+                    else{
+                        writer.WriteLine(s);
+                    }
+                receivedLog += s;
+                }
+            }
+        }
     }
 }
