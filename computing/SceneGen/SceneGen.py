@@ -34,7 +34,7 @@ surrounding_objects = objects_to_model
 
 ##Sampling
 #sampling resolution
-pointsnumber = 50 
+pointsnumber = 100 
 anglesnumber = 8
 #allowable Overlaps:
 can_overlap = {'bed':['other', 'decor', 'picture'],
@@ -94,9 +94,9 @@ def parseRoom(fname, input_dir, add_objects = False):
     for obj in objects:
         obj.updateProximities(room_info)
     if add_objects:
-        return objects, objects_to_add
+        return objects, objects_to_add, room_info
     else:
-        return objects
+        return objects, room_info
         """
 2D projection of objects in a room
 """
@@ -153,7 +153,7 @@ Returns probablities of all sampled positions and sampled orientations
 def generatePossiblePositionOrientation(object_name, objects, position_model, position_model_headings, orientation_model, orientation_model_headings, object_to_add, symmetry, room_info = None, get_all = False):
     new_semanticobj = createSemanticObject(object_to_add)
     if room_info is None:
-        room_info = getRoomInfo(objects + [new_semanticobj])
+        room_info = getRoomInfo(objects)
 
     spaceXmin, spaceXmax, spaceYmin, spaceYmax, _ = room_info
     pointnx = int(pointsnumber * (spaceXmax-spaceXmin)//((spaceXmax-spaceXmin)*(spaceYmax-spaceYmin)))
@@ -247,12 +247,11 @@ def augmentScene_getAllResult(room, input_dir, output_dir, model_dir, visualize 
     except:
         pass
     all_add_object_names = []
-    objects = parseRoom(room, input_dir, add_objects =  False)
-    _, objects_to_add = parseRoom("to_add_objects.txt", model_dir, add_objects =  True)
-    room_info = getRoomInfo(objects)
+    objects, room_info = parseRoom(room, input_dir, add_objects =  False)
+    _, objects_to_add, _ = parseRoom("to_add_objects.txt", model_dir, add_objects =  True)
     if visualize:
         plt.figure(figsize=(10,10))
-        visualizeScene(objects)
+        visualizeScene(objects, room_info = room_info)
         plt.savefig(output_dir + 'before.png')
         plt.show()
     
